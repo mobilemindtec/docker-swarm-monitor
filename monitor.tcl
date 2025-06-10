@@ -384,6 +384,7 @@ proc execute_action {analysis} {
     set severity [dict get $analysis severity]
     set reason [dict get $analysis reason]
     set containers_to_down [dict get $analysis containers_to_down]
+    set action_executed false
 
     if {[llength $containers_to_down] > 0} {
         foreach container $containers_to_down {
@@ -392,6 +393,7 @@ proc execute_action {analysis} {
             set cid [dict get $container id]
             log_message "ACTION" "Container removido - $reason"
             send_telegram_notification "critical" "stop_container" $creason
+            set action_executed true
         }
     }
     
@@ -399,22 +401,27 @@ proc execute_action {analysis} {
         "scale_down_services" {
             #scale_down_services
             log_message "ACTION" "Serviços redimensionados - $reason"
+            set action_executed true
         }
         "restart_docker" {
             #restart_docker_service
             log_message "ACTION" "Docker reiniciado - $reason"
+            set action_executed true
         }
         "cleanup_docker" {
             #cleanup_docker_resources
             log_message "ACTION" "Limpeza do Docker executada - $reason"
+            set action_executed true
         }
         "none" {
-            return
+            return false
         }
     }
     
     # Notificar via Telegram
     send_telegram_notification $severity $action $reason
+
+    return $action_executed
 }
 
 proc scale_down_services {} {
@@ -704,7 +711,10 @@ proc main_loop {} {
     
     # Executar ação se necessário
     if {$action_taken ne "none"} {
-        execute_action $analysis
+        if {[execute_action $analysis]} {
+            # reset metrics if execute action
+            set metrics_history {}   
+        }
     }
     
     # Armazenar métricas
