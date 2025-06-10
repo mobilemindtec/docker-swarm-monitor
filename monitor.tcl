@@ -39,7 +39,7 @@ if { [file exists ./config.tcl] } {
         telegram_chat_id "SEU_CHAT_ID_AQUI"
         metrics_db "/var/log/swarm_metrics.db"
         http_port 9090
-        collect_interval 30
+        collect_interval 10
         analysis_window 300
         memory_threshold_warning 80
         memory_threshold_critical 90
@@ -120,6 +120,9 @@ proc get_system_metrics {} {
     dict set metrics docker_containers [dict get $docker_info containers]
     dict set metrics docker_services [dict get $docker_info services]
     
+    # Docker containers stats
+    dict set metrics docker_containers_stats [get_containers_stats]
+
     # Timestamp
     dict set metrics timestamp [clock seconds]
     
@@ -197,6 +200,42 @@ proc get_docker_info {} {
     return [dict create containers $containers services $services]
 }
 
+# Função para obter estatísticas de CPU dos containers
+proc get_containers_stats {} {
+    
+    if {[catch {exec docker stats --no-stream --format "table {{.Container}} {{.CPUPerc}} {{.MemPerc}} {{.Name}}"} result]} {
+        log_message "ERROR" "Falha ao executar docker stats: $result"
+        return {}
+    }
+    
+    set lines [split $result "\n"]
+    set containers {}
+    
+    # Pular a primeira linha (cabeçalho)
+    foreach line [lrange $lines 1 end] {
+        if {$line eq ""} continue
+        
+        lassign $line container_id cpu_percent mem_percent container_name
+        
+        # Remover o símbolo % e converter para número
+        set cpu_value [string trimright $cpu_percent "%"]
+        set mem_value [string trimright $mem_percent "%"]
+
+        set container [dict create \
+                                id $container_id \
+                                cpu_usage $cpu_value \
+                                memory_usage $mem_value \
+                                name $container_name]
+
+        
+
+        lappend containers $container
+        
+    }
+    
+    return $containers
+}
+
 # ==============================================================================
 # Funções de Análise e Decisão
 # ==============================================================================
@@ -213,16 +252,77 @@ proc analyze_metrics {metrics_list} {
     set memory_sum 0.0
     set disk_sum 0.0
     set count 0
+    set stats {}
     
     foreach metrics $metrics_list {
         set cpu_sum [expr {$cpu_sum + [dict get $metrics cpu_usage]}]
         set memory_sum [expr {$memory_sum + [dict get $metrics memory_usage]}]
         set disk_sum [expr {$disk_sum + [dict get $metrics disk_usage]}]
+
+        set containers_stats [dict get $metrics docker_containers_stats]
+
+        foreach container $containers_stats {
+
+            set stat {}
+            set id [dict get $container id]
+
+            if {[dict exists $stats $id]} {
+                set stat [dict get $stats $id]
+                dict set stat cpu_usage [expr {[dict get $stat cpu_usage] + [dict get $container cpu_usage]}] 
+                dict set stat memory_usage [expr {[dict get $stat memory_usage] + [dict get $container memory_usage]}] 
+                dict set stat count [expr {[dict get $stat count] + 1}] 
+
+            } else {
+                dict set stat id $id
+                dict set stat name [dict get $container name]
+                dict set stat cpu_usage [dict get $container cpu_usage]
+                dict set stat memory_usage [dict get $container memory_usage]                
+                dict set stat count 1
+            }
+
+            dict set stats $id $stat
+
+        }
+
         incr count
     }
     
     if {$count == 0} {
         return [dict create action "none" severity "info"]
+    }
+
+    set containers_to_down {}
+
+    foreach stat [dict values $stats] {
+        set id [dict get $stat id]
+        set name [dict get $stat name]
+        set cpu_usage [dict get $stat cpu_usage]
+        set memory_usage [dict get $stat memory_usage]
+        set n [dict get $stat count]
+
+        if {$n < $count} {
+            log_message "INFO" "Ainda não há informações suficientes para analisar o container $name"
+            continue
+        }
+
+        set avg_cpu [expr { $cpu_usage / $n }]
+        set avg_memory [expr { $memory_usage / $n }]
+
+        if { $avg_cpu >= $CONFIG(cpu_threshold_critical) } {
+            lappend containers_to_down [dict create \
+                                            name $name \
+                                            id $id \
+                                            reason "$name - CPU crítico: ${avg_cpu}%"]
+        }
+
+        if { $avg_memory >= $CONFIG(memory_threshold_critical) } {
+            lappend containers_to_down [dict create \
+                                            name $name \
+                                            id $id \
+                                            reason "$name - Memória crítica: ${avg_memory}%"]
+        }
+
+        log_message "INFO" "Média $name - CPU: ${avg_cpu}% | Memory: ${avg_memory}%"
     }
     
     set avg_cpu [expr {$cpu_sum / $count}]
@@ -230,11 +330,13 @@ proc analyze_metrics {metrics_list} {
     set avg_disk [expr {$disk_sum / $count}]
     
     log_message "INFO" "Médias 5min - CPU: ${avg_cpu}% | Memory: ${avg_memory}% | Disk: ${avg_disk}%"
+
     
     # Determinar ação necessária
     set action "none"
     set severity "info"
     set reason ""
+
     
     # Verificar condições críticas
     if {$avg_memory >= $CONFIG(memory_threshold_critical)} {
@@ -269,7 +371,8 @@ proc analyze_metrics {metrics_list} {
         reason $reason \
         avg_cpu $avg_cpu \
         avg_memory $avg_memory \
-        avg_disk $avg_disk]
+        avg_disk $avg_disk \
+        containers_to_down $containers_to_down]
 }
 
 # ==============================================================================
@@ -280,18 +383,30 @@ proc execute_action {analysis} {
     set action [dict get $analysis action]
     set severity [dict get $analysis severity]
     set reason [dict get $analysis reason]
+    set containers_to_down [dict get $analysis containers_to_down]
+
+    if {[llength $containers_to_down] > 0} {
+        foreach container $containers_to_down {
+
+            set reason [dict get $container reason]
+            set name [dict get $container name]
+            set id [dict get $container id]
+
+            send_telegram_notification "critical" "stop_container" $reason
+        }
+    }
     
     switch $action {
         "scale_down_services" {
-            scale_down_services
+            #scale_down_services
             log_message "ACTION" "Serviços redimensionados - $reason"
         }
         "restart_docker" {
-            restart_docker_service
+            #restart_docker_service
             log_message "ACTION" "Docker reiniciado - $reason"
         }
         "cleanup_docker" {
-            cleanup_docker_resources
+            #cleanup_docker_resources
             log_message "ACTION" "Limpeza do Docker executada - $reason"
         }
         "none" {
@@ -317,6 +432,19 @@ proc scale_down_services {} {
                 }
             }
         }
+    }
+}
+
+# Função para parar um container
+proc stop_container {container_id container_name cpu_usage} {
+    log_message "AÇÃO: Parando container $container_name ($container_id) - CPU: ${cpu_usage}%"
+    
+    if {[catch {exec docker stop $container_id} result]} {
+        log_message "ERRO: Falha ao parar container $container_name: $result"
+        return 0
+    } else {
+        log_message "SUCESSO: Container $container_name parado com sucesso"
+        return 1
     }
 }
 
@@ -561,6 +689,15 @@ proc main_loop {} {
         }
     }
     set metrics_history $filtered_history
+
+    set metrics_count [llength $filtered_history]
+    set min_metrics_to_analyze [expr { $CONFIG(analysis_window) / $CONFIG(collect_interval) }]
+
+    if { $metrics_count < $min_metrics_to_analyze } {
+        log_message "INFO" "Metricas insuficiêntes para analise. Coletas: ${metrics_count}X Necessário: ${min_metrics_to_analyze}X"
+        schedule_next $start_time
+        return
+    }
     
     # Analisar métricas se temos dados suficientes
     set analysis [analyze_metrics $metrics_history]
@@ -574,14 +711,16 @@ proc main_loop {} {
     # Armazenar métricas
     #store_metrics $current_metrics $action_taken
     
+    schedule_next $start_time
+}
+
+proc schedule_next {start_time} {
+    global CONFIG
     # Calcular tempo de espera
     set elapsed [expr {[clock seconds] - $start_time}]
     set sleep_time [expr {$CONFIG(collect_interval) - $elapsed}]
-    
-    #if {$sleep_time > 0} {
     after [expr {$sleep_time * 1000}] main_loop
-    #}
-    
+
 }
 
 # ==============================================================================

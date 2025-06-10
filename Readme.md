@@ -3,6 +3,14 @@
 
 
 
+## Dependecies
+
+	sudo apt-get install \
+		libsqlite3-dev \
+		libsqlite3-tcl \
+		tclx \
+		tclib
+
 ## Install 
 
 	$ sudo ./install.sh
