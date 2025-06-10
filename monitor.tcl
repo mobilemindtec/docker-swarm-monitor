@@ -528,7 +528,7 @@ proc send_telegram_notification {severity action reason} {
     try {
         set token [http::geturl $url -query $data -timeout 10000]
         dict set last_notification $notification_key $current_time
-        log_message "INFO" "Notificação Telegram enviada"
+        log_message "INFO" "Notificação Telegram enviada: $action"
         http::cleanup $token
     } on error err {
         log_message "ERROR" "Falha ao enviar notificação Telegram: $err"
