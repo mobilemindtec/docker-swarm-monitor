@@ -513,6 +513,7 @@ proc send_telegram_notification {severity action reason} {
         default { set emoji "📊" }
     }
     
+    # telegram markdown cannot have - or _
     set message "${emoji} *Docker Swarm Monitor*\n\n"
     append message "*Host:* $hostname\n"
     append message "*Timestamp:* $timestamp\n"
