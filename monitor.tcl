@@ -387,12 +387,11 @@ proc execute_action {analysis} {
 
     if {[llength $containers_to_down] > 0} {
         foreach container $containers_to_down {
-
-            set reason [dict get $container reason]
-            set name [dict get $container name]
-            set id [dict get $container id]
-
-            send_telegram_notification "critical" "stop_container" $reason
+            set creason [dict get $container reason]
+            set cname [dict get $container name]
+            set cid [dict get $container id]
+            log_message "ACTION" "Container removido - $reason"
+            send_telegram_notification "critical" "stop_container" $creason
         }
     }
     
