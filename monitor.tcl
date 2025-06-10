@@ -503,7 +503,7 @@ proc send_telegram_notification {severity action reason} {
     }
     
     set hostname [exec hostname]
-    set timestamp [clock format $current_time -format "%Y-%m-%d %H:%M:%S"]
+    set timestamp [clock format $current_time -format "%Y/%m/%d %H:%M:%S"]
     
     # Emojis baseados na severidade
     switch $severity {
@@ -513,22 +513,25 @@ proc send_telegram_notification {severity action reason} {
         default { set emoji "📊" }
     }
     
-    set message "${emoji} **Docker Swarm Monitor**\n\n"
-    append message "**Host:** $hostname\n"
-    append message "**Timestamp:** $timestamp\n"
-    append message "**Severidade:** [string toupper $severity]\n"
-    append message "**Ação:** $action\n"
-    append message "**Motivo:** $reason"
+    set message "${emoji} *Docker Swarm Monitor*\n\n"
+    append message "*Host:* $hostname\n"
+    append message "*Timestamp:* $timestamp\n"
+    append message "*Severidade:* [string toupper $severity]\n"
+    append message "*Acao:* [regsub -all {_} $action { }]\n"
+    append message "*Motivo:* $reason"
+
+    puts $message
     
+
     # Enviar para Telegram
     set url "https://api.telegram.org/bot$CONFIG(telegram_bot_token)/sendMessage"
-    set data [http::formatQuery chat_id $CONFIG(telegram_chat_id) text $message parse_mode "Markdown"]
+    set data [http::formatQuery chat_id $CONFIG(telegram_chat_id) parse_mode MarkdownV2 text $message]
     
 
     try {
         set token [http::geturl $url -query $data -timeout 10000]
         dict set last_notification $notification_key $current_time
-        log_message "INFO" "Notificação Telegram enviada: $action"
+        log_message "INFO" "Notificação Telegram enviada \[[::http::status $token]\]: $action"
         http::cleanup $token
     } on error err {
         log_message "ERROR" "Falha ao enviar notificação Telegram: $err"
