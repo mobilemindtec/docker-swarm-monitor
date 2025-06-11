@@ -273,6 +273,8 @@ proc analyze_metrics { metrics_list } {
       dict set stats $id $stat
     }
 
+    log_message "INFO" "memory_sum:${memory_sum}%, cpu_sum: ${cpu_sum}%"
+
     incr count
   }
 
