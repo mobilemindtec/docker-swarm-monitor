@@ -301,14 +301,14 @@ proc analyze_metrics { metrics_list } {
       lappend containers_to_down [dict create \
         name $name \
         id $id \
-        reason "$name - CPU crítico: ${avg_cpu}%"]
+        reason "$name - CPU crítico: [expr { int($avg_cpu) }]%"]
     }
 
     if { $avg_memory >= $CONFIG(memory_threshold_critical) } {
       lappend containers_to_down [dict create \
         name $name \
         id $id \
-        reason "$name - Memória crítica: ${avg_memory}%"]
+        reason "$name - Memória crítica: [expr { int($avg_memory) }]%"]
     }
 
     log_message "INFO" "Média $name - CPU: ${avg_cpu}% | Memory: ${avg_memory}%"
@@ -329,27 +329,27 @@ proc analyze_metrics { metrics_list } {
   if { $avg_memory >= $CONFIG(memory_threshold_critical) } {
     set action "restart_docker"
     set severity "critical"
-    set reason "Memória crítica: ${avg_memory}%"
+    set reason "Memória crítica: [expr { int($avg_memory) }]%"
   } elseif { $avg_cpu >= $CONFIG(cpu_threshold_critical) } {
     set action "scale_down_services"
     set severity "critical"
-    set reason "CPU crítico: ${avg_cpu}%"
+    set reason "CPU crítico: [expr { int($avg_cpu) }]%"
   } elseif { $avg_disk >= $CONFIG(disk_threshold_critical) } {
     set action "cleanup_docker"
     set severity "critical"
-    set reason "Disco crítico: ${avg_disk}%"
+    set reason "Disco crítico: [expr { int($avg_disk) }]%"
   } elseif { $avg_memory >= $CONFIG(memory_threshold_warning) } {
     set action "scale_down_services"
     set severity "warning"
-    set reason "Memória alta: ${avg_memory}%"
+    set reason "Memória alta: [expr { int($avg_memory) }]%"
   } elseif { $avg_cpu >= $CONFIG(cpu_threshold_warning) } {
     set action "scale_down_services"
     set severity "warning"
-    set reason "CPU alto: ${avg_cpu}%"
+    set reason "CPU alto: [expr { int($avg_cpu) }]%"
   } elseif { $avg_disk >= $CONFIG(disk_threshold_warning) } {
     set action "cleanup_docker"
     set severity "warning"
-    set reason "Disco alto: ${avg_disk}%"
+    set reason "Disco alto: [expr { int($avg_disk) }]%"
   }
 
   return [dict create \
@@ -430,13 +430,13 @@ proc scale_down_services { } {
 
 # Função para parar um container
 proc stop_container { container_id container_name cpu_usage } {
-  log_message "AÇÃO: Parando container $container_name ($container_id) - CPU: ${cpu_usage}%"
+  log_message "INFO" "Parando container $container_name ($container_id) - CPU: ${cpu_usage}%"
 
   if { [catch { exec docker stop $container_id } result] } {
-    log_message "ERRO: Falha ao parar container $container_name: $result"
+    log_message "ERROR" "Falha ao parar container $container_name: $result"
     return 0
   } else {
-    log_message "SUCESSO: Container $container_name parado com sucesso"
+    log_message "INFO" "Container $container_name parado com sucesso"
     return 1
   }
 }
