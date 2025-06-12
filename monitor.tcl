@@ -251,7 +251,7 @@ proc analyze_metrics { metrics_list } {
     set memory_sum [expr { $memory_sum + [dict get $metrics memory_usage] }]
     set disk_sum [expr { $disk_sum + [dict get $metrics disk_usage] }]
 
-    set containers_stats [dict get $metrics docker_containers_stats]
+    #set containers_stats [dict get $metrics docker_containers_stats]
 
     #    foreach container $containers_stats {
     #      set stat {}
