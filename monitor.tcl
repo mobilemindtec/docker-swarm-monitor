@@ -117,7 +117,7 @@ proc get_system_metrics { } {
   dict set metrics docker_services [dict get $docker_info services]
 
   # Docker containers stats
-  dict set metrics docker_containers_stats [get_containers_stats]
+  #dict set metrics docker_containers_stats [get_containers_stats]
 
   # Timestamp
   dict set metrics timestamp [clock seconds]
