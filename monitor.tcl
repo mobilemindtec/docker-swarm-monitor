@@ -606,28 +606,28 @@ proc send_prometheus_metrics { sock } {
   append response "Connection: close\n\n"
 
   # Métricas no formato Prometheus
-  append response "# HELP swarm_cpu_usage_percent CPU usage percentage\n"
-  append response "# TYPE swarm_cpu_usage_percent gauge\n"
+  #append response "# HELP swarm_cpu_usage_percent CPU usage percentage\n"
+  #append response "# TYPE swarm_cpu_usage_percent gauge\n"
   append response "swarm_cpu_usage_percent{hostname=\"$hostname\"} [dict get $current_metrics cpu_usage]\n\n"
 
-  append response "# HELP swarm_memory_usage_percent Memory usage percentage\n"
-  append response "# TYPE swarm_memory_usage_percent gauge\n"
+  #append response "# HELP swarm_memory_usage_percent Memory usage percentage\n"
+  #append response "# TYPE swarm_memory_usage_percent gauge\n"
   append response "swarm_memory_usage_percent{hostname=\"$hostname\"} [dict get $current_metrics memory_usage]\n\n"
 
-  append response "# HELP swarm_disk_usage_percent Disk usage percentage\n"
-  append response "# TYPE swarm_disk_usage_percent gauge\n"
+  #append response "# HELP swarm_disk_usage_percent Disk usage percentage\n"
+  #append response "# TYPE swarm_disk_usage_percent gauge\n"
   append response "swarm_disk_usage_percent{hostname=\"$hostname\"} [dict get $current_metrics disk_usage]\n\n"
 
-  append response "# HELP swarm_load_average System load average\n"
-  append response "# TYPE swarm_load_average gauge\n"
+  #append response "# HELP swarm_load_average System load average\n"
+  #append response "# TYPE swarm_load_average gauge\n"
   append response "swarm_load_average{hostname=\"$hostname\"} [dict get $current_metrics load_avg]\n\n"
 
-  append response "# HELP swarm_containers_total Total number of containers\n"
-  append response "# TYPE swarm_containers_total gauge\n"
+  #append response "# HELP swarm_containers_total Total number of containers\n"
+  #append response "# TYPE swarm_containers_total gauge\n"
   append response "swarm_containers_total{hostname=\"$hostname\"} [dict get $current_metrics docker_containers]\n\n"
 
-  append response "# HELP swarm_services_total Total number of services\n"
-  append response "# TYPE swarm_services_total gauge\n"
+  #append response "# HELP swarm_services_total Total number of services\n"
+  #append response "# TYPE swarm_services_total gauge\n"
   append response "swarm_services_total{hostname=\"$hostname\"} [dict get $current_metrics docker_services]\n\n"
 
   puts -nonewline $sock $response
