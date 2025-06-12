@@ -524,7 +524,7 @@ proc send_telegram_notification { severity action reason } {
 
   # telegram markdown cannot have - or _
   set message "${emoji} *Docker Swarm Monitor*\n\n"
-  append message "*Host:* $hostname\n"
+  append message "*Host:* [lindex [split $hostname .] 0]\n"
   append message "*Timestamp:* $timestamp\n"
   append message "*Severidade:* [string toupper $severity]\n"
   append message "*Acao:* [normalize_msg $action]\n"
