@@ -546,7 +546,7 @@ proc send_telegram_notification { severity action reason } {
 
 proc normalize_msg { msg } {
   set msg [regsub -all {_} $msg {\_}]
-  set msg [regsub -all {.} $msg {\.}]
+  set msg [regsub -all {\.} $msg {\.}]
   return $msg
 }
 
