@@ -599,7 +599,7 @@ proc send_prometheus_metrics { sock } {
 
   # Obter métricas atuais
   set current_metrics [get_system_metrics]
-  set hostname [dict get $current_metrics hostname]
+  set hostname [lindex [split [dict get $current_metrics hostname] .] 0]
 
   set response "HTTP/1.1 200 OK\n"
   append response "Content-Type: text/plain\n"
@@ -628,7 +628,7 @@ proc send_prometheus_metrics { sock } {
 
   #append response "# HELP swarm_services_total Total number of services\n"
   #append response "# TYPE swarm_services_total gauge\n"
-  append response "swarm_services_total{hostname=\"$hostname\"} [dict get $current_metrics docker_services]"
+  append response "swarm_services_total{hostname=\"$hostname\"} [dict get $current_metrics docker_services]\n"
 
   puts -nonewline $sock $response
 }
