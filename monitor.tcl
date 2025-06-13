@@ -397,11 +397,23 @@ proc execute_action { analysis } {
         send_telegram_notification $severity "update_service" $reason
         update_services
         set elapsed [expr { [clock seconds] - $start_time }]
-        send_telegram_notification $severity "update_service" "4GYM atualizado em $elapsed segundos"
+
+        if { $elapsed > 60 } {
+          set elapsed_label [expr { $elapsed / 60 }]
+          set elapsed_label "${elapsed_label},[expr { $elapsed % 60 }]min"
+        } else {
+          set elapsed_label "${elapsed}seg"
+        }
+
+        log_message "INFO" "Serviço atualizado com sucesso em ${elapsed_label}."
+        send_telegram_notification $severity "update_service" "4GYM atualizado em ${elapsed_label}"
         set action_executed true
       } on error err {
+        log_message "ERROR" "Ocorreu um erro ao atualizar serviço"
         send_telegram_notification $severity "update_service" "Ocorreu um erro ao atualizar 4GYM: $err"
       }
+
+      return $action_executed
     }
     "restart_docker" {
       #restart_docker_service
