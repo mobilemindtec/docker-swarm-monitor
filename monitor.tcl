@@ -45,6 +45,7 @@ if { [file exists ./config.tcl] } {
         cpu_threshold_critical 90
         disk_threshold_warning 85
         disk_threshold_critical 95
+        critical_services_update 4gym_4gym
     }
 }
 
@@ -390,30 +391,17 @@ proc execute_action { analysis } {
     "scale_down_services" {
       log_message "ACTION" "Serviços redimensionados - $reason"
       #scale_down_services
-
-      set start_time [clock seconds]
-
       try {
-        send_telegram_notification $severity "update_service" $reason
-        update_services
-        set elapsed [expr { [clock seconds] - $start_time }]
-
-        if { $elapsed > 60 } {
-          set elapsed_label [expr { $elapsed / 60 }]
-          set elapsed_label "${elapsed_label},[expr { $elapsed % 60 }]min"
-        } else {
-          set elapsed_label "${elapsed}seg"
+        if { ![update_services $severity $reason] } {
+          return false
         }
-
-        log_message "INFO" "Serviço atualizado com sucesso em ${elapsed_label}."
-        send_telegram_notification $severity "update_service" "4GYM atualizado em ${elapsed_label}"
-        set action_executed true
+        return true
       } on error err {
-        log_message "ERROR" "Ocorreu um erro ao atualizar serviço"
-        send_telegram_notification $severity "update_service" "Ocorreu um erro ao atualizar 4GYM: $err"
+        log_message "ERROR" "Ocorreu um erro ao executar atualização de serviços: $err"
+        send_telegram_notification $severity $action "Ocorreu um erro ao executar atualização de serviços: $err"
       }
 
-      return $action_executed
+      return false
     }
     "restart_docker" {
       #restart_docker_service
@@ -436,13 +424,68 @@ proc execute_action { analysis } {
   return $action_executed
 }
 
-proc update_services { } {
-  set result [exec docker service inspect 4gym_4gym --format "{{.UpdateStatus.State}}"]
-  if { $result != "updating" } {
-    exec docker service update --force 4gym_4gym
-  } else {
-    log_message "INFO" "update in progress"
+proc update_services { severity reason } {
+  global CONFIG
+
+  set critical_services_update [split $CONFIG(critical_services_update) ,]
+
+  foreach service_name $critical_services_update {
+    set updating [check_service_updating $service_name]
+    set starting [check_service_starting $service_name]
+
+    if { !$updating && !$starting } {
+      if { ![run_service_update $service_name $severity $reason] } {
+        return false
+      }
+    } else {
+      if { $updating } {
+        log_message "INFO" "service updating in progress for service $service_name"
+      } else {
+        log_message "INFO" "service starting in progress for service $service_name"
+      }
+    }
   }
+  return true
+}
+
+proc run_service_update { service_name severity reason } {
+  try {
+    set update_label "update service $service_name"
+
+    send_telegram_notification $severity $update_label $reason
+
+    set start_time [clock seconds]
+
+    exec docker service update --force $service_name
+
+    set elapsed [expr { [clock seconds] - $start_time }]
+
+    if { $elapsed > 60 } {
+      set elapsed_label [expr { $elapsed / 60 }]
+      set elapsed_label "${elapsed_label},[expr { $elapsed % 60 }]min"
+    } else {
+      set elapsed_label "${elapsed}seg"
+    }
+
+    log_message "INFO" "Serviço $service_name atualizado com sucesso em ${elapsed_label}."
+    send_telegram_notification $severity $update_label "Serviço atualizado em ${elapsed_label}"
+    return true
+  } on error err {
+    log_message "ERROR" "Ocorreu um erro ao atualizar serviço: $err"
+    send_telegram_notification $severity $update_label "Ocorreu um erro ao atualizar serviço: $err"
+    return false
+  }
+}
+
+proc check_service_starting { service_name } {
+  set desired [exec docker service inspect --format "{{.Spec.Mode.Replicated.Replicas}}" $service_name]
+  set running [exec docker service ps --filter "desired-state=running" --format "{{.CurrentState}}" $service_name | grep -c "Running"]
+  return [expr { $running != $desired }]
+}
+
+proc check_service_updating { service_name } {
+  set result [exec docker service inspect $service_name --format "{{if .UpdateStatus }} {{.UpdateStatus.State}} {{end}}"]
+  return [expr { $result == "updating" }]
 }
 
 proc scale_down_services { } {
@@ -513,7 +556,7 @@ proc send_telegram_notification { severity action reason } {
   global CONFIG last_notification
 
   set current_time [clock seconds]
-  set notification_key "${severity}_${action}"
+  set notification_key "${severity}_${action}_${reason}"
 
   # Evitar spam - não enviar a mesma notificação em menos de 5 minutos
   if { [dict exists $last_notification $notification_key] } {
