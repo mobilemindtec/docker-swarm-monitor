@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Job principal do Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Job para consumir as métricas do Docker Swarm
+  - job_name: 'docker-swarm-metrics'
+    static_configs:
+      - targets: ['s1.mobilemind.com:PORT']  # Substitua PORT pela porta do seu endpoint
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'  # Caminho onde as métricas estão expostas
+    
+    # Configurações opcionais
+    scheme: http  # ou https se necessário
+    
+    # Se precisar de autenticação básica
+    # basic_auth:
+    #   username: 'seu_usuario'
+    #   password: 'sua_senha'
+    
+    # Se precisar de headers customizados
+    # params:
+    #   format: ['prometheus']
+    
+    # Labels estáticos adicionais (opcionais)
+    static_configs:
+      - targets: ['s1.mobilemind.com:PORT']
+        labels:
+          environment: 'production'
+          service: 'docker-swarm'
