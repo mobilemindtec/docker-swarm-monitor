@@ -31,7 +31,7 @@ if { [file exists ./config.tcl] } {
 } else {
   log_message "CRITICAL" "File configs not found. Use in-memory configs"
 
-  # Configurações
+  # Configurações para teste
   array set CONFIG {
         telegram_bot_token "SEU_BOT_TOKEN_AQUI"
         telegram_chat_id "SEU_CHAT_ID_AQUI"
@@ -46,6 +46,7 @@ if { [file exists ./config.tcl] } {
         disk_threshold_warning 85
         disk_threshold_critical 95
         critical_services_update 4gym_4gym
+        service_update_stack_deploy_cmd "into ~/cluster, ./swr deploy 4gym"
     }
 }
 
@@ -428,6 +429,21 @@ proc update_services { severity reason } {
   global CONFIG
 
   set critical_services_update [split $CONFIG(critical_services_update) ,]
+  set stack_deploy_cmds [split $CONFIG(service_update_stack_deploy_cmd) ,]
+
+  foreach cmd $stack_deploy_cmds {
+    log_message "INFO" "run stack deploy before update. CMD: $cmd"
+    try {
+      if { [string match "into *" $cmd] } {
+        cd [lindex [split $cmd " "] 1]
+      } else {
+        exec $cmd
+      }
+    } on error err {
+      log_message "ERROR" "error on run stack deploy before update. CMD: $cmd, error: $err"
+      send_telegram_notification $severity stack_deploy "Ocorreu um erro ao atualizar stack antes do update. CMD $cmd, Error: $err"
+    }
+  }
 
   foreach service_name $critical_services_update {
     set updating [check_service_updating $service_name]
@@ -455,6 +471,8 @@ proc run_service_update { service_name severity reason } {
     send_telegram_notification $severity $update_label $reason
 
     set start_time [clock seconds]
+
+    exec
 
     exec docker service update --force $service_name
 
