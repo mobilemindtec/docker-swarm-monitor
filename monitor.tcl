@@ -437,7 +437,7 @@ proc update_services { severity reason } {
       if { [string match "into *" $cmd] } {
         cd [lindex [split $cmd " "] 1]
       } else {
-        exec $cmd
+        exec bash -c $cmd
       }
     } on error err {
       log_message "ERROR" "error on run stack deploy before update. CMD: $cmd, error: $err"
