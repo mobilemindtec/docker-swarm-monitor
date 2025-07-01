@@ -472,8 +472,6 @@ proc run_service_update { service_name severity reason } {
 
     set start_time [clock seconds]
 
-    exec
-
     exec docker service update --force $service_name
 
     set elapsed [expr { [clock seconds] - $start_time }]
